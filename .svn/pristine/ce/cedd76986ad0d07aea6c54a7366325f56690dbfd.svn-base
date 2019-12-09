@@ -1,0 +1,616 @@
+-- | Este módulo define funções comuns da Tarefa 6 do trabalho prático.
+module Tarefa6_2018li1g077 where
+
+import LI11819
+import Tarefa1_2018li1g077
+import Tarefa2_2018li1g077
+import Data.List
+import LI11819
+import Data.Char
+import Tarefa0_2018li1g077
+import Tarefa4_2018li1g077
+
+import LI11819
+
+-- numero associada a cada posicao de um tanque:
+
+---------------------
+--------------------- 8---7---6
+----------------------
+----------------------5---9---4
+----------------------
+--------------------- 3---2---1
+
+-- * Funções principais da Tarefa 6.
+
+-- | Define um ro'bot' capaz de jogar autonomamente o jogo.
+bot :: Int          -- ^ O identificador do 'Jogador' associado ao ro'bot'.
+    -> Estado       -- ^ O 'Estado' para o qual o ro'bot' deve tomar uma decisão.
+    -> Maybe Jogada -- ^ Uma possível 'Jogada' a efetuar pelo ro'bot'.
+bot n e | temDxplodir = decisaoFinal (if (pontos (mapaEstado e) ((filter (\(DisparoCanhao a b c) -> a /= n) ) $ disparosCa $ disparosEstado e) pJ dJ > 4) && lJ > 0 then [Just (Dispara Laser)] else [(Just (Dispara Canhao))]) possiveisJogadas
+        | (length $ filter id (eAlvo inimigos minhaLFogo)) == 1 = decisaoFinal [(Just (Dispara Canhao))] possiveisJogadas'
+        | (length $ filter id (eAlvo inimigos minhaLFogo)) >= 2 = decisaoFinal [(if lJ > 0 then Just (Dispara Laser) else Just (Dispara Canhao))] possiveisJogadas'
+        | minhaSegurancaR == 7 = decisaoFinal [Just (Movimenta (botAux1 pJ pJ1))] possiveisJogadas'
+        | minhaSegurancaR == 5 = decisaoFinal ((map (\x -> Just (Movimenta x))) $ map (encontraDir pJ) (pathfinder pJ2 pJ (mapaEstado e))) possiveisJogadas'
+        | otherwise = if temDxplodir then decisaoFinal [(Just (Dispara Canhao))] possiveisJogadas' else  decisaoFinal  ((map (\x -> Just (Movimenta x))) $ map (encontraDir pJ) (pathfinder  (inimigoMaisProximo) pJ (mapaEstado e))) possiveisJogadas'
+ where (Jogador pJ dJ vJ lJ cJ) = encontraIndiceLista n (jogadoresEstado e)
+       gridSeguranca = f1 n e -- :: [(PosicaoGrelha,[(Int,Int)]] Posicoes do mapa e seguranca 
+       minhasPosD = (perigoDisparos (mapaEstado e) (criaPos2X 1 pJ) (analisaDisparos (disparosCa $ disparosEstado e))) ++ (perigoDisparosFuturo (mapaEstado e) (novas3 pJ dJ) dJ (analisaDisparos (disparosCa $ disparosEstado e)))
+       possiveisJogadas = accessDanger minhasPosD dJ
+       minhaSeguranca = concat $ map (\x -> x gridSeguranca) (map encontraSegurancaAux (criaPos2X 1 pJ))
+       minhaSegurancaR = maximum' $ map (\(w,z) -> z) minhaSeguranca
+       listaSegurancaR7 = filter (\(k,l) -> l == 7) minhaSeguranca
+       indxInimigo7 = (fst (head listaSegurancaR7))
+       (Jogador pJ1 dJ1 vJ1 lJ1 cJ1) = encontraIndiceLista indxInimigo7 (jogadoresEstado e)
+       listaSegurancaR5 = filter (\(k,l) -> l == 5) minhaSeguranca
+       indxInimigo5 = (fst (head listaSegurancaR5))
+       (Jogador pJ2 dJ2 vJ2 lJ2 cJ2) = encontraIndiceLista indxInimigo5 (jogadoresEstado e)
+       inimigos = map fst listaJogVivos
+       minhaLFogo = minhasTau n e -- [PosicaoGrelha]
+       inimigoMaisProximo = if length inimigos == 0 then (pJ) else head $ ordBy (dist pJ) (map posicaoJogador inimigos) 
+       listaJogVivos = assignInd (jogadoresEstado e) 0 n -- :: [(Jogador,Int)]
+       temDxplodir = testeMovimenta2 (peca1,peca2)
+       (peca1,peca2) = checkB (mapaEstado e) (somaVetores pJ (direcaoParaVetor dJ)) dJ
+       (peca1C,peca2C) = checkB (mapaEstado e) (somaVetores pJ (direcaoParaVetor C)) C
+       (peca1B,peca2B) = checkB (mapaEstado e) (somaVetores pJ (direcaoParaVetor B)) B
+       (peca1D,peca2D) = checkB (mapaEstado e) (somaVetores pJ (direcaoParaVetor D)) D
+       (peca1E,peca2E) = checkB (mapaEstado e) (somaVetores pJ (direcaoParaVetor E)) E
+       testeMovimenta (pecaT1,pecaT2) = pecaT1 /= Bloco Indestrutivel && pecaT2 /= Bloco Indestrutivel 
+       testeMovimenta2 (pecaT1,pecaT2) = pecaT1 == Bloco Destrutivel || pecaT2 == Bloco Destrutivel 
+       possiveisJogadas' = deleteImpMoves [(C,testeMovimenta (peca1C,peca2C)),(B,testeMovimenta (peca1B,peca2B)),(D,testeMovimenta (peca1D,peca2D)),(E,testeMovimenta (peca1E,peca2E))] possiveisJogadas
+
+-- | Aplica a função maximum a uma lista. Se essa lista for a lista vazia, devolve o valor "0".
+maximum' [] = 0
+maximum' l = maximum l
+
+-- | Recebe um par com uma Direcao e um Bool (decide se é possível mover-se nessa direção), e apaga jogadas que involvem mover-se em direções associadas com o valor "False".
+deleteImpMoves :: [(Direcao,Bool)] -> [Maybe Jogada] -> [Maybe Jogada] 
+deleteImpMoves (d:ds) [] = []
+deleteImpMoves [] d = d
+deleteImpMoves (x:xs) d = if snd x then deleteImpMoves xs d else  deleteImpMoves xs (delete (Just (Movimenta (fst x))) d) 
+
+-- | Recebe uma listas de jogadas que o jogador quer fazer, uma lista de jogadas que o jogador pode fazer, e devolve a jogada que deverá fazer.
+decisaoFinal (x:xs) [] = x
+decisaoFinal [] p = head p
+decisaoFinal (q:qs) (p:ps) = if elem q (p:ps) then q else decisaoFinal qs (p:ps)
+
+
+-- | Sabendo a posicao em que está e a posicao que quer ir, devolve a direcao necessaria para mover
+encontraDir a b = case c of (1,0) -> B
+                            ((-1),0) -> C
+                            (0,1) -> D
+                            (0,(-1)) -> E
+ where c = subtraiVetores b a 
+        
+-- | Verifica se vale a pena disparar um laser.
+pontos :: Mapa -> [Disparo] -> PosicaoGrelha -> Direcao -> Int
+pontos mp d p1 dir = if pdContinuar 
+                     then blocoParaPontos blc1 + blocoParaPontos blc2 + (if elem p1 (map posicaoDisparo d) then 1 else 0) + (pontos mp d p2 dir) 
+                     else 0
+ where (pdContinuar,zz) = pdContinuarL (checkB mp p1 dir)
+       vetorD = direcaoParaVetor dir 
+       blocoParaPontos (Bloco Destrutivel) = 1
+       blocoParaPontos _ = 0
+       (blc1,blc2) = (checkB mp p1 dir)
+       p2 = somaVetores p1 vetorD
+
+
+
+    
+-- | Direcao que se deve ir de modo a puder disparar num inimigo.   
+botAux1 :: PosicaoGrelha -> PosicaoGrelha -> Direcao
+botAux1 (a,b) (c,d) | abs y < abs x = if x > 0 then B else C
+                    | abs y > abs x = if y > 0 then D else E
+                    | abs y == abs x = D
+                    | otherwise = error "???"
+ where x = c-a
+       y = d-b
+              
+
+
+-- | Sabendo uma lista de jogadores e uma lista de posiçoes, verifica se as posições correspondem a uma das 6 posicoes ocupadas por um jogador.
+eAlvo :: [Jogador] -> [PosicaoGrelha] -> [Bool]
+eAlvo (j:js) p = (any id $ (map (\x -> x p)) $ map (\x -> elem x) (criaPos2X 1 (posicaoJogador j))):(eAlvo js p)
+eAlvo [] _ = []
+
+-- | Ordena uma lista pelos valores resultantes da aplicação duma função. 
+ordBy :: Ord b => (a -> b) -> [a] -> [a]
+ordBy f [] = []
+ordBy f (x:xs) = ordByX f x (ordBy f xs)
+
+-- | Função auxiliar da função "ordBy"
+ordByX :: Ord b => (a -> b) -> a -> [a] -> [a]
+ordByX f a [] = [a]
+ordByX f a (x:xs) = if (f a) < (f x) then (a:x:xs) else x : (ordByX f a xs)      
+
+-- | Sabendo uma posicao, devolve a lista de pares que representam a segurança dessa posição. 
+encontraSegurancaAux :: PosicaoGrelha -> [(PosicaoGrelha,[(Int,Int)])] -> [(Int,Int)]
+encontraSegurancaAux p [] = []
+encontraSegurancaAux p (x:xs) = if p == fst x then (snd x) else encontraSegurancaAux p xs
+
+
+
+
+--- 1 - Recolher informação
+
+
+-- [Just (Move C), Just (Move D), Just (Move E), Just (Move B) , (Dispara Canhao), (Dispara Laser), Nothing]
+
+-- | Calcula a distancia entre 2 vetores
+dist x y = abs a + abs b
+ where (a,b) = subtraiVetores x y
+
+-- | Remove o n-ésimo elemento de uma lista
+rmIndx n [] = []
+rmIndx 0 (x:xs) = xs
+rmIndx n (x:xs) = x : (rmIndx (n-1) xs)
+---------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------disparos
+  
+-- | Calcula as possíveis jogadas que um jogador pode fazer de modo a não ser atingido por disparos.
+accessDanger :: [(String,Maybe [(Int,Direcao)])] -> Direcao -> [Maybe Jogada]
+accessDanger (("SE",a):("S",b):("SW",c):("E",d):("null",e):("W",f):("NE",g):("N",h):("NW",i):xs) dir 
+ = jogadasComuns $ hollowSlayer [(accessDangerDiag [("SE",a),("SW",c),("NE",g),("NW",i)] dir),(accessDangerNSEW [("S",b),("W",f),("E",d),("N",h)] dir),(accessDangerFuture xs)] 
+
+-- | Verifica que jogadas é que se podem fazer de modo a não ser atingido por Disparos não vão atingir o jogador se ele não se mover.
+accessDangerFuture :: [(String,Maybe [(Int,Direcao)])] -> [Maybe Jogada]
+accessDangerFuture [(a,x),(b,y),(c,w)]  = jogadasComuns $ hollowSlayer [one,two,three]
+ where f (n,Nothing) = [(n,Nothing)] 
+       f (n,Just []) = []
+       f (n,Just (x:xs)) = (n,Just x) : (f (n,Just xs)) 
+       one = jogadasComuns $ hollowSlayer $ map (possiveisJogadas3Diag) (f (a,x))
+       two = jogadasComuns $ hollowSlayer $ map (possiveisJogadas3NSEW) (f (b,y))
+       three = jogadasComuns $ hollowSlayer $ map (possiveisJogadas3Diag) (f (c,w))
+      
+
+
+-- | Verifica as jogadas que se podem fazer, de modo a não ser atingido nas posições "Diagonais" de um tanque. Se um tanque estivesse na posicão (1,1), estas posicões seriam as posicões : (0,0),(2,0),(2,0),(2,2)
+accessDangerDiag :: [(String,Maybe [(Int,Direcao)])] -> Direcao -> [Maybe Jogada]
+accessDangerDiag [("SE",x),("SW",y),("NE",w),("NW",z)] dir = jogadasComuns $ hollowSlayer [one,two,three,four] 
+ where f (n,Nothing) = [(n,Nothing)] 
+       f (n,Just []) = []
+       f (n,Just (x:xs)) = (n,Just x) : (f (n,Just xs)) 
+       length' (a,Nothing) = 0
+       length' (b, Just c) = length y
+       one = jogadasComuns $ hollowSlayer $ map (accessDangerDiagA dir) (f ("SE",x))
+       two = jogadasComuns $ hollowSlayer $ map (accessDangerDiagA dir) (f ("SW",y))
+       three = jogadasComuns $ hollowSlayer $ map (accessDangerDiagA dir) (f ("NE",w))
+       four = jogadasComuns $ hollowSlayer $ map (accessDangerDiagA dir) (f ("NW",z))
+
+
+
+-- | Sabendo uma direção cardinal diagonal associada a uma posição do tanque, e a direção e distãncia de um certo disparo, devolve as jogadas que pode fazer de modo a não ser atingido por esse projétil.
+accessDangerDiagA ::  Direcao -> (String,Maybe (Int,Direcao)) -> [Maybe Jogada]
+accessDangerDiagA _ (_ ,Nothing)  = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+accessDangerDiagA dirJ (a, Just (n,dir)) | n < 1 = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+                                         | n == 1 = if  (elem dirJ) $ delete dir (fugasPossiveis a) then [Just (Movimenta dirJ)] else [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+                                         | n == 2 = if (elem dirJ) $ delete dir (fugasPossiveis a) then [Just (Movimenta dirJ),Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque) ] else (map (\x -> Just (Movimenta x))) $ delete dir $ (fugasPossiveis a)
+                                         | n == 3 = if dirJ == dirOposta dir then (listaD dirJ) ++ [Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque) ] else if (elem $ dirOposta dirJ) $ delete dir (fugasPossiveis a) then (listaD dirJ) ++ [Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque) ] else [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+                                         | otherwise = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+ where sentidosOpostos direcao = [direcao, (dirOposta direcao)]
+       listaD direcao = (map (\x -> Just (Movimenta x))) $ delete direcao [C,B,D,E]
+
+
+fugasPossiveis :: String -> [Direcao]
+fugasPossiveis "NW" = [B,D]
+fugasPossiveis "NE" = [B,E]
+fugasPossiveis "SW" = [C,D]
+fugasPossiveis "SE" = [C,E]
+
+accessDangerNSEW :: [(String,Maybe [(Int,Direcao)])] -> Direcao -> [Maybe Jogada]
+accessDangerNSEW [("S",x),("W",y),("E",w),("N",z)] dir = jogadasComuns $ hollowSlayer [one,two,three,four] 
+ where f (n,Nothing) = [(n,Nothing)] 
+       f (n,Just []) = []
+       f (n,Just (x:xs)) = (n,Just x) : (f (n,Just xs)) 
+       length' (a,Nothing) = 0
+       length' (b, Just c) = length y
+       one = jogadasComuns $ hollowSlayer $ map (accessDangerNSEWa dir) (f ("S",x))
+       two = jogadasComuns $ hollowSlayer $ map (accessDangerNSEWa dir) (f ("W",y))
+       three = jogadasComuns $ hollowSlayer $ map (accessDangerNSEWa dir) (f ("E",w))
+       four = jogadasComuns $ hollowSlayer $ map (accessDangerNSEWa dir) (f ("N",z))
+
+hollowSlayer :: [[a]] -> [[a]]
+hollowSlayer [] = []
+hollowSlayer ([]:xs) = hollowSlayer xs
+hollowSlayer (x:xs) = x : (hollowSlayer xs)
+ 
+-- assume que o primeiro termo é o menor
+jogadasComuns :: [[Maybe Jogada]] -> [Maybe Jogada]
+jogadasComuns ([]:xss) = [] 
+jogadasComuns ((x:xs):xss) = if all id (map (elem x) xss) then x : (jogadasComuns (xs:xss)) else jogadasComuns (xs:xss)
+
+accessDangerNSEWa :: Direcao -> (String,Maybe (Int,Direcao)) -> [Maybe Jogada]
+accessDangerNSEWa _ (_, Nothing)  = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+accessDangerNSEWa dirJogador (a, Just (n,dir)) = if dirJogador == dirOposta dir then possiveisJogadas1 (a, Just (n,dir)) else possiveisJogadas2 (a, Just (n,dir)) dirJogador
+ 
+-- bala vem duma posicao NSEW e o jogador esta a olhar para ela
+possiveisJogadas1 (a, Just (n,dir)) | n < 2 = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+                                    | n == 2 = [Just (Dispara Canhao), Just (Dispara Laser)]
+                                    | n == 3 = [Just (Dispara Canhao), Just (Dispara Laser), Just (Dispara Choque), Nothing] ++ listaSemMove
+                                    | otherwise = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+ where listaSemMove = map (\x -> (Just (Movimenta x))) $ filter (\x -> x /= dir && x /= (dirOposta dir)) [C,B,D,E]
+
+
+cardinalParaDir "N" = C
+cardinalParaDir "S" = B
+cardinalParaDir "W" = D
+cardinalParaDir "E" = E
+
+dirParaCardinal C = "N"
+dirParaCardinal B = "S"
+dirParaCardinal D = "W"
+dirParaCardinal E = "E"
+
+-- bala vem duma posicao NSEW e jogador nao esta a olhar para ela
+possiveisJogadas2 (a, Just (n,dir)) dirJ | n < 1 = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+                                         | n == 1 = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+                                         | n == 2 = [Just (Movimenta dirJ)] 
+                                         | n == 3 = if dirJ == dir then [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)] else listaPos  ++ [Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+                                         | otherwise = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+ where listaPos = (map (\x -> Just (Movimenta x)) ) $ filter (\x -> x /= dir) [C,B,D,E]
+
+
+
+possiveisJogadas3NSEW (a,Nothing) = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+possiveisJogadas3NSEW (a, Just (n,dir)) | dir == (dirOposta (cardinalParaDir2 a)) = f
+                                        | otherwise = ((map (\x -> Just (Movimenta x))) $ filter (\x -> x /= dirOposta dir) [C,B,D,E]) ++ [Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+ where f   | n == 0 = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+           | n <= 2 = ((map (\x -> Just (Movimenta x))) $ filter (\x -> x /= dirOposta dir) [C,B,D,E]) ++ [Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+           | otherwise = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+
+cardinalParaDir2 "NN" = C
+cardinalParaDir2 "SS" = B
+cardinalParaDir2 "WW" = E
+cardinalParaDir2 "EE" = D
+
+dirParaCardinal2 C = "NN"
+dirParaCardinal2 B = "SS"
+dirParaCardinal2 D = "WW"
+dirParaCardinal2 E = "EE"
+
+possiveisJogadas3Diag (a, Nothing) = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]       
+possiveisJogadas3Diag (a,Just (n,dir)) | dir == dirOposta (fst $ cardiagonalParaDir a) = f
+                                       | dir == dirOposta (snd $ cardiagonalParaDir a) = g
+                                       | otherwise = ((map (\x -> Just (Movimenta x))) $ filter (\x -> x /= dirOposta dir) [C,B,D,E]) ++ [Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+
+ where f   | n == 0 = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+           | n <= 2 = ((map (\x -> Just (Movimenta x))) $ filter (\x -> x /= (fst $ cardiagonalParaDir a)) [C,B,D,E]) ++ [Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+           | otherwise = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+       g   | n == 0 = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+           | n <= 3 = ((map (\x -> Just (Movimenta x))) $ filter (\x -> x /= (fst $ cardiagonalParaDir a)) [C,B,D,E]) ++ [Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]
+           | otherwise = [Just (Movimenta C), Just (Movimenta D), Just (Movimenta E), Just (Movimenta B) , Just (Dispara Canhao), Just (Dispara Laser), Nothing, Just (Dispara Choque)]       
+
+-- | Sabendo uma cardinal diagonal (nor-noroeste = "NNW") , devolve um par de direçoes - a principal e a secundaria
+cardiagonalParaDir :: String -> (Direcao,Direcao)
+cardiagonalParaDir "NNW" = (C,E)
+cardiagonalParaDir "NNE" = (C,D)
+cardiagonalParaDir "EEN" = (D,C)
+cardiagonalParaDir "EES" = (D,B)
+cardiagonalParaDir "WWN" = (E,C)
+cardiagonalParaDir "WWS" = (E,B)
+cardiagonalParaDir "SSW" = (B,E)
+cardiagonalParaDir "SSE" = (B,D)
+
+
+
+
+
+-- | As 3 novas posicoes que um jogador ocupará caso se mover na direcao em que esta a olhar
+novas3 :: PosicaoGrelha -> Direcao -> [PosicaoGrelha]
+novas3 (x,y) dir = if dir == C || dir == B then map (somaVetores c) [(x,y-1),(x,y),(x,y+1)] else map (somaVetores c) [(x-1,y),(x,y),(x+1,y)]
+ where c = (a*2,b*2)
+       (a,b) = direcaoParaVetor dir
+                                          
+analisaDisparos :: [Disparo] -> [(PosicaoGrelha,Direcao)]
+analisaDisparos [] = []
+analisaDisparos ((DisparoChoque a b):xs) = analisaDisparos xs
+analisaDisparos (x:xs) = (posicaoDisparo x,direcaoDisparo x) : (analisaDisparos xs)
+
+----- Principal 
+perigoDisparos :: Mapa -> [PosicaoGrelha] -> [(PosicaoGrelha,Direcao)] -> [(String,Maybe [(Int,Direcao)])]
+perigoDisparos mp myPos [] = [("SE",Nothing),("S",Nothing),("SW",Nothing),("E",Nothing),("null",Nothing),("W",Nothing),("NE",Nothing),("N",Nothing),("NW",Nothing)]
+
+perigoDisparos mp myPos (x:xs) = (map (\(y,z) -> (intParaDirCardinal y,z) )) $ (contagemDecrescente 1) $ perigoDisparosAux mp trueMinhasPos myPos (x:xs)
+ where trueMinhasPos :: [(PosicaoGrelha,Maybe [(Int,Direcao)])] 
+       trueMinhasPos = map (\x -> (x,Nothing)) myPos
+
+perigoDisparosFuturo :: Mapa -> [PosicaoGrelha] -> Direcao -> [(PosicaoGrelha,Direcao)] -> [(String,Maybe [(Int,Direcao)])]
+perigoDisparosFuturo mp myPosF dirJ [] = (map (\(y,z) -> (intParaCardiagonal y,z) )) $ (map (\(x,y) -> (3 * (dirPMult dirJ) + x,y) )) $ (contagemDecrescente 1) $ perigoDisparosAux mp trueMinhasPos myPosF []
+ where trueMinhasPos :: [(PosicaoGrelha,Maybe [(Int,Direcao)])] 
+       trueMinhasPos = map (\x -> (x,Nothing)) myPosF
+       dirPMult C = 0
+       dirPMult D = 1
+       dirPMult B = 2
+       dirPMult E = 3
+
+perigoDisparosFuturo mp myPosF dirJ (x:xs) = (map (\(y,z) -> (intParaCardiagonal y,z) )) $ (map (\(x,y) -> (3 * (dirPMult dirJ) + x,y) )) $ (contagemDecrescente 1) $ perigoDisparosAux mp trueMinhasPos myPosF (x:xs)
+ where trueMinhasPos :: [(PosicaoGrelha,Maybe [(Int,Direcao)])] 
+       trueMinhasPos = map (\x -> (x,Nothing)) myPosF
+       dirPMult C = 0
+       dirPMult D = 1
+       dirPMult B = 2
+       dirPMult E = 3
+
+
+
+intParaCardiagonal :: Int -> String
+intParaCardiagonal 1 = "NNW"
+intParaCardiagonal 2 = "NN"
+intParaCardiagonal 3 = "NNE"
+intParaCardiagonal 4 = "EEN"
+intParaCardiagonal 5 = "EE"
+intParaCardiagonal 6 = "EES"
+intParaCardiagonal 7 = "SSW"
+intParaCardiagonal 8 = "SS"
+intParaCardiagonal 9 = "SSE"
+intParaCardiagonal 10 = "WWN"
+intParaCardiagonal 11 = "WW"
+intParaCardiagonal 12 = "WWS"
+
+
+
+
+
+
+
+intParaDirCardinal :: Int -> String
+intParaDirCardinal 9 = "null"
+intParaDirCardinal 8 = "NW"
+intParaDirCardinal 7 = "N"
+intParaDirCardinal 6 = "NE"
+intParaDirCardinal 5 = "W"
+intParaDirCardinal 4 = "E"
+intParaDirCardinal 3 = "SW"
+intParaDirCardinal 2 = "S"
+intParaDirCardinal 1 = "SE"
+
+
+contagemDecrescente :: Int -> [(a,b)] -> [(Int,b)]
+contagemDecrescente _ [] = []
+contagemDecrescente 4 (x:y:xs) = (4,snd x) : (9,snd y) :(contagemDecrescente 5 xs)
+contagemDecrescente n (x:xs) = (n,snd x) : (contagemDecrescente (n+1) xs)
+
+perigoDisparosAux :: Mapa ->  [(PosicaoGrelha,Maybe [(Int,Direcao)])] -> [PosicaoGrelha] -> [(PosicaoGrelha,Direcao)] -> [(PosicaoGrelha,Maybe [(Int,Direcao)])]
+perigoDisparosAux mp myPos myAcc [] = myPos
+perigoDisparosAux mp myPos myAcc (x:xs) = perigoDisparosAux mp (posShotD mp myPos myAcc 0 x) myAcc xs
+
+
+posShotD :: Mapa -> 
+ [(PosicaoGrelha,Maybe [(Int,Direcao)])] ->
+ [PosicaoGrelha] -> -- posicoes ocupadas pelo jogador
+ Int -> -- numero de jogadas ate a bala atingir o jogador (acumula)
+ (PosicaoGrelha,Direcao) -> 
+ [(PosicaoGrelha,Maybe [(Int,Direcao)])]
+
+posShotD mp myPos myAcc ind ((pD1,pD2),dD)
+ | elem (pD1,pD2) myAcc = posShotDaux ind myPos ((pD1,pD2),dD)
+ | a = (posShotD mp myPos myAcc (ind+1) ((pD1+c,pD2+d),dD))
+ | otherwise = myPos
+   where (a,b) = pdContinuarC (checkB mp (pD1,pD2) dD)
+         (c,d) = direcaoParaVetor dD
+
+posShotDaux :: Int -> [(PosicaoGrelha,Maybe [(Int,Direcao)])] -> (PosicaoGrelha,Direcao) -> [(PosicaoGrelha,Maybe [(Int,Direcao)])]
+posShotDaux _ [] _ = []
+posShotDaux n (x:xs) (p,d) = if p == fst x then ((fst x, (updateSDisparos n d (snd x))) :xs)  else (x:(posShotDaux n xs (p,d)))
+
+updateSDisparos :: Int -> Direcao -> Maybe [(Int,Direcao)] -> Maybe [(Int,Direcao)]
+updateSDisparos n dir Nothing = Just [(n,dir)]
+updateSDisparos n dir l =  (:) <$> Just ((n,dir)) <*> l 
+
+---- -----------------------------------------------------------------------------------------jogadores
+agregator ::  [(PosicaoGrelha,(Int,Int))] -> [(PosicaoGrelha,[(Int,Int)])]
+agregator [] = []
+agregator (((l1,c2),ind1):xs) = if elem (l1,c2) (map (\((x,y),z) -> (x,y)) xs) 
+                                then a : (agregator b)
+                                else ((l1,c2),[ind1]) : agregator xs
+ where (a,b) = (agregatorA ((l1,c2),[ind1]) xs) 
+
+agregatorA :: (PosicaoGrelha,[(Int,Int)]) -> [(PosicaoGrelha,(Int,Int))] -> ((PosicaoGrelha,[(Int,Int)]), [(PosicaoGrelha,(Int,Int))])
+agregatorA ((l1,c1),id) [] = (((l1,c1), nub id),[])
+agregatorA ((l1,c1),id) (((l2,c2),id2):xs) = if l1 == l2 && c1 == c2 then (c,d) else (a , (((l2,c2),id2):b)  )
+
+ where (a,b) = agregatorA ((l1,c1),id) xs  
+       (c,d) = agregatorA ((l1,c1),(id2:id)) xs  
+
+------------------
+-- | Devolve as posições que possivelmente iriam ser afetadas por um DisparoLaser dos restantes tanques.
+truePosShots :: Int -> Estado -> [(PosicaoGrelha,Int)]
+truePosShots ind (Estado mapa j d) = filter (\((x,y),z) -> z /= ind ) (possibleShots ind mapa j)
+
+----------------------------------------------------------------------------------------------------------------------------
+
+-- | Sabendo o indice do jogador, devolve as posicoes da grelha que seriam ocupadas se este disparasse um laser
+minhasTau ind (Estado mapa j d) = map (\((x,y),z) -> (x,y)) (posShotA mapa pG dir ind)
+ where (Jogador pG dir vj lJ cJ) = encontraIndiceLista ind j
+
+--------------------------------------------------------------------------------------------------------------
+
+possibleShots :: Int -> Mapa -> [Jogador] -> [(PosicaoGrelha,Int)]
+possibleShots _ _ [] = []
+possibleShots ind mp ((Jogador (p1,p2) dir vJ lJ cJ):js) = (posShotA mp (p1,p2) dir ind) ++ (possibleShots (ind +1) mp js) 
+
+
+-- | Devolve as posicaoGrelha afetadas se um jogador disparasse um projéctil, e os jogador respectivo.
+posShotA :: Mapa -> PosicaoGrelha -> Direcao -> Int -> [(PosicaoGrelha,Int)]
+posShotA mp (p1,p2) dir indx = if a then ((p1,p2),indx) : (posShotA mp (p1 + c,p2 + d) dir indx) else [((p1,p2),indx)]  
+ where (a,b) = pdContinuarC (checkB mp (p1,p2) dir)
+       (c,d) = direcaoParaVetor dir
+------------------------------------------------------------------------------------------------------------------------
+
+-- | Sabendo o indice do jogador, devolve as posições da grelha por ele ocupadas. (sem contar com a sua posicaoGrelha)
+minhasPos :: Int -> Estado -> [PosicaoGrelha]
+minhasPos ind (Estado mp (j:js) (d:ds)) = (criaPos2X 1 (pos1,pos2))
+ where (Jogador (pos1,pos2) d e f g) = encontraIndiceLista ind (j:js)
+
+
+
+
+
+-----------------------------------------------------------------------------------------------------------------------------
+
+---- Segurança relativa
+ {-
+7 - Numa posicao na qual bastava uma ou menos jogadas por um tanque inimigo de modo a ficar em linha de fogo direta.
+3 - Não estar protegido na vertical (A levar com "sombras" da horizontal)
+2 - Não estar protegido na horizontal (A levar com "sombras" da vertical)
+-}
+
+
+f1 :: Int -> Estado -> [((PosicaoGrelha),[(Int,Int)])]
+f1 ind (Estado mp jgs dps) =  agregator $ concat $ zipWith (f3 mp) listaPF3 trueLInd
+ where pJgs = map (posicaoJogador.fst) listaJogVivos -- :: [PosicaoGrelha] sem o man
+       trueLInd = map snd listaJogVivos -- :: [Int] -> indices dos gaijos  excepto o man
+       listaPF3 = map (f2 mp) (pJgs) -- :: [([PosicaoGrelha],[PosicaoGrelha])] 
+       listaJogVivos = assignInd jgs 0 ind 
+       
+       
+assignInd :: [Jogador] -> Int -> Int -> [(Jogador,Int)]
+assignInd [] n indx = []
+assignInd (x:xs) n indx = if (vidasJogador x)  > 0 && n /= indx then ((x),n) : (assignInd xs (n+1) indx) else assignInd xs (n+1) indx
+
+--- | Auxiliar da f3 (+)
+f2 ::  Mapa -> PosicaoGrelha -> ([PosicaoGrelha],[PosicaoGrelha])
+f2 mapa (l1,c1) = ( (map (\((x,y),z) -> (x,y)) a) , (map (\((x,y),z) -> (x,y)) b))
+ where a =  (nub $ (init $ posShotA mapa (l1-1,c1) C 1) ++  (init $ posShotA mapa (l1+1,c1) B 1))
+       b =  (nub $ (init $ posShotA mapa (l1,c1-1) E 1) ++  (init $ posShotA mapa (l1,c1+1) D 1 ))
+
+eBordaMatriz' a b = not (eBordaMatriz b a)
+
+f3 ::  Mapa -> ([PosicaoGrelha],[PosicaoGrelha]) ->  Int -> [(PosicaoGrelha,(Int,Int))] 
+f3 mapa (a,b) ind = f3Aux [] [] (trueListAB ++ (concat $ (map (posShotT mapa E ind) a) ++ (map (posShotT mapa D ind) a) ++ (map (posShotT mapa C ind) b) ++ (map (posShotT mapa B ind) b)))
+ where listAB = (a++b)
+       trueListAB = (\(x,y)(w,z) -> ((x,y),(w,z))) <$> listAB <*> [(ind,7)]  
+
+
+       
+
+-- | Duplo acumulador (Soma repetidos)
+f3Aux :: [(PosicaoGrelha,(Int,Int))] -> [(PosicaoGrelha,(Int,Int))] -> [(PosicaoGrelha,(Int,Int))] -> [(PosicaoGrelha,(Int,Int))]
+f3Aux l1 l2 [] = l1
+f3Aux [] [] (x:xs) = f3Aux [x] [x] xs
+f3Aux [] l (x:xs) = f3Aux (x:l) (x:l) xs
+f3Aux ((p1,(indx,sIndx)):xs) l ((p2,(ind2,sInd2)):ys)= if p1 == p2 
+                                                       then f3Aux ((p1,(indx,sIndx+sInd2)):(filter (\(x,y) -> x /= p1) l)) ((p1,(indx,sIndx+sInd2)):(filter (\(x,y) -> x /= p1) l)) ys
+                                                       else f3Aux xs l ((p2,(ind2,sInd2)):ys) 
+
+posShotT :: Mapa -> Direcao -> Int -> PosicaoGrelha -> [(PosicaoGrelha,(Int,Int))]
+posShotT mp dir int (l1,c1) = posShotAS mp (l1+a,c1+b) dir int
+ where (a,b) = direcaoParaVetor dir 
+
+posShotAS :: Mapa -> PosicaoGrelha -> Direcao -> Int -> [(PosicaoGrelha,(Int,Int))]
+posShotAS mp (p1,p2) dir indx = if a then ((p1,p2),(indx,sIndx)) : (posShotAS mp (p1 + c,p2 + d) dir indx) else []  
+ where (a,b) = pdContinuarC (checkB mp (p1,p2) dir)
+       (c,d) = direcaoParaVetor dir
+       sIndx = dirParaSeguranca dir
+
+dirParaSeguranca :: Direcao -> Int
+dirParaSeguranca C = 2
+dirParaSeguranca B = 2
+dirParaSeguranca E = 3
+dirParaSeguranca D = 3
+
+
+
+
+-------------------- pathfinder
+
+-- | Cria uma lista  com todas as posicoes da grelha de um mapa que podem ser ocupadas por um tanque
+posGM :: Mapa -> [PosicaoGrelha]
+posGM m = g1Aux (l,c)  m 
+ where l = (length m)-3
+       c = (length $ head m )-3
+
+-- | Auxiliar da funcao posGM
+g1Aux :: (Int, Int) -> Mapa -> [PosicaoGrelha]
+g1Aux (a,b) mp = filter (  (h).(posicoesBG mp)  ) (criaPosX' (a,b) (1,1))
+ where h l = not (elem (Bloco Indestrutivel) l)
+
+-- | Ve os blocos a volta de uma PosicaGrelha
+posicoesBG :: Mapa -> PosicaoGrelha -> [Peca]
+posicoesBG mp (l1,c1) = map (encontraPosicaoMatriz' mp) [(l1,c1),(l1,c1+1),(l1+1,c1),(l1+1,c1+1)]
+
+
+encontraPosicaoMatriz' ::  Matriz a -> Posicao -> a
+encontraPosicaoMatriz' a (l,c)  = encontraIndiceLista c (encontraIndiceLista l a) 
+
+
+criaPosY' :: Int -> PosicaoGrelha -> [PosicaoGrelha]
+criaPosY' z (x,y) = if z > y then ((x,y) : (criaPosY' z (x,y+1)))
+                             else [(x,y)]
+
+criaPosX' :: (Int,Int) -> PosicaoGrelha -> [PosicaoGrelha]
+criaPosX' (a,b) (x,y) = if a > x then (criaPosY' b (x,y)) ++ (criaPosX' (a,b) (x+1,y))
+                        else criaPosY' b (x,y) 
+
+
+pathfinder :: PosicaoGrelha -> PosicaoGrelha -> Mapa -> [PosicaoGrelha]
+pathfinder dest part mp = (map (\(x,y) -> x)) $ filter (\(a,(Just b)) -> b+1 == mb) listaEscolha
+ where inicial = jogadasNecessarias1 dest (posGM mp)
+       final = assignJNa3 0 inicial
+       (partM,(Just mb)) = pegaPG part final
+       listaEscolha = filter (\(x,z) -> elem x (posicoesAVolta part)) final
+       (x,z) = escolheM [] listaEscolha
+
+-- | Verifica se uma posGrelha está a beira de outra
+estaBeira :: PosicaoGrelha -> PosicaoGrelha -> Bool
+estaBeira (l1,c1) (l2,c2) = ((abs (l1 - l2) == 1) && (c1 == c2)) ||  ((abs (c1 - c2) == 1) && (l1 == l2))
+
+-- | Assinala 0 a posicaoGrelha destino e nothing ao resto
+jogadasNecessarias1 :: PosicaoGrelha -> [PosicaoGrelha] -> [(PosicaoGrelha, Maybe Int)]
+jogadasNecessarias1 _ [] = []
+jogadasNecessarias1 p1 (p2:xs) = (if p1 == p2 then (p2,Just 0) else (p2,Nothing)) : (jogadasNecessarias1 p1 xs)
+
+-- | Função auxiliar da funcao assignJNa3. Substitui o valor "Nothing" de uma posicaoGrelha que está a beira duma posicaoGrelha com o valor "Just n" por "Just n+1". Se já estiver um valor assinalado, é ignorada.
+assignJN :: (PosicaoGrelha,Maybe Int) -> [(PosicaoGrelha, Maybe Int)] -> [(PosicaoGrelha, Maybe Int)]
+assignJN x [] = []
+assignJN (pG,Just d) ((x,Nothing):xs) = (if (estaBeira pG x) then (x,Just (d+1)) else (x,Nothing)) : (assignJN (pG, Just d) xs) 
+assignJN (pG,Just d) ((x,a):xs) = (x,a) : (assignJN (pG, Just d) xs) 
+
+-- | Função auxiliar da função assignJNa3
+assignJNa2 :: [(PosicaoGrelha, Maybe Int)] -> [(PosicaoGrelha, Maybe Int)] -> [(PosicaoGrelha, Maybe Int)]
+assignJNa2 [] l = l
+assignJNa2 (x:xs) (y:ys) = assignJNa2 xs (assignJN x (y:ys))
+
+
+-- | Faz um mapa de posiçõesGrelha associadas ao respectivo número de turnos necessarios para chegar ao ponto desejado. Se não houver nenhum caminho entre um ponto e esse, o valor associado é "Nothing".
+assignJNa3 :: Int -> [(PosicaoGrelha, Maybe Int)] -> [(PosicaoGrelha, Maybe Int)]
+assignJNa3 n l = if (any' estaBeira (map (\(x,y) -> x)  trueL) (posOnlyL $ filter (\(x,y) -> y == Nothing) l))
+ then assignJNa3 (n+1) updtL else l
+ where trueL = filter (\(x,y) -> y == (Just n)) l
+       updtL = (assignJNa2 trueL l)
+       posOnlyL listaPGM = map (\(x,y) -> x) listaPGM
+       h = estaBeira
+
+any' :: (a -> a -> Bool) -> [a] -> [a] -> Bool
+any' f _ [] = False
+any' f [] _ = False
+any' f (x:xs) (y:ys) = any (f x) (y:ys) || any' f xs (y:ys) 
+
+
+-- | Faz um caminho entre duas "posicaoGrelha". A primeira que recebe é a final, a segunda que recebe é a inicial.
+testePathFinder :: PosicaoGrelha -> PosicaoGrelha -> Mapa -> [PosicaoGrelha]
+testePathFinder dest part mp = if dest == part then [dest] else (part :  (testePathFinder dest x mp)  ) 
+ where inicial = jogadasNecessarias1 dest (posGM mp)
+       final = assignJNa3 0 inicial
+       (partM,(Just mb)) = pegaPG part final
+       listaEscolha = filter (\(x,z) -> elem x (posicoesAVolta part)) final
+       (x,z) = escolheM [] listaEscolha
+
+-- | Recebe uma lista com pares de "posicaoGrelha" e um valor Maybe n e devolve aposicaoGrelha com o valor n minimo.
+escolheM :: [(PosicaoGrelha, Maybe Int)] -> [(PosicaoGrelha, Maybe Int)] -> (PosicaoGrelha, Maybe Int)
+escolheM [x] [] = x
+escolheM [] (x:xs) = escolheM [x] xs
+escolheM [(p,(Just x))] ((p2,(Just z)):xs) = escolheM [(if x > z then (p2,(Just z)) else (p,(Just x)) )] xs
+escolheM [(p,(Just x))] ((p2,Nothing):xs) = escolheM [(p,(Just x))] xs
+
+-- | Sabendo uma posicaoGrelha, devolve o par dessa posicao com o número de jogadas necessárias para chegar a uma posicaoGrelha.
+pegaPG :: PosicaoGrelha -> [(PosicaoGrelha, Maybe Int)] -> (PosicaoGrelha, Maybe Int)
+pegaPG p [] = error "erro"
+pegaPG p ((p2,mInt):xs) = if p == p2 then (p2,mInt) else pegaPG p xs
+
+-- | Devolve as 4 posições a distância 1 duma posicaoGrelha conhecida.
+posicoesAVolta (l1,c1) = [(l1+1,c1),(l1-1,c1),(l1,c1+1),(l1,c1-1)]
+
+
+-----------------2
+
