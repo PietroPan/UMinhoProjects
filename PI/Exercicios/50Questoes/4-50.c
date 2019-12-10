@@ -151,7 +151,11 @@ char charMaisfreq (char s[])
     for (i=0;s[i]!='\0';i++) 
     {
         c=numchar(s,s[i]);
-        if (a<c) {a=c;b=s[i];}
+        if (a<c) 
+        {
+            a=c;
+            b=s[i];
+        }
     }
     return b;
 }
@@ -244,7 +248,11 @@ int sufPref (char s1 [], char s2 [])
         else 
         {
             a=0;
-            if (b==1) {i--;b=0;}
+            if (b==1) 
+            {
+                i--;
+                b=0;
+            }
         }
     }
     return a;
@@ -508,7 +516,8 @@ int elimRepOrd (int v[], int n)
     {
         if (v[i]!=v[i-1]) 
         {
-            v[a]=v[i];a++;
+            v[a]=v[i];
+            a++;
         }
     }
     return a;
