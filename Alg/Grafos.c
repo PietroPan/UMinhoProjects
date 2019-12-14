@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define V 5
+#define V 7
 
 typedef int GraphMat[V][V];
 
@@ -134,21 +134,183 @@ int maxCap (Graph g)
     return r;
 }
 
+int vCoverage (Graph g,int c[])
+{
+    int i;
+    struct edge *aux;
+    for (i=0;i<V;i++)
+    {
+        for (aux=g[i];aux!=NULL;aux=aux->next)
+        {
+            if (c[i]==0 && c[aux->dest]==0) return 0;
+        }
+    }
+    return 1;
+}
+
+int colorOK (Graph g, int cor[])
+{
+    int i;
+    struct edge *aux;
+    for (i=0;i<V;i++)
+    {
+        for (aux=g[i];aux!=NULL;aux=aux->next)
+        {
+            if (cor[i]==cor[aux->dest]) return 0;
+        }
+    }
+    return 1;
+}
+
+int isOrd (int c[],int a,int b)
+{
+    int i;
+    for (i=0;i<V;i++)
+    {
+        if (c[i]==a) return 1;
+        if (c[i]==b) return 0;
+    }
+}
+
+int testTop (Graph g,int v[])
+{
+    int i;
+    struct edge *aux;
+    for (i=0;i<V;i++)
+    {
+        for (aux=g[i];aux!=NULL;aux=aux->next)
+        {
+            if (!isOrd(v,i,aux->dest)) return 0;
+        }
+    }
+    return 1;
+}
+
+int procuraRec (Graph g,int o,int d,int vis[])
+{
+    int found=0;
+    struct edge *aux;
+    vis[o]=1;
+    if (o==d) found=1;
+    for (aux=g[o];aux!=NULL&&!found;aux=aux->next)
+    {
+        if (!vis[aux->dest])
+        found=(procuraRec (g,aux->dest,d,vis));
+    }
+    return found;
+}
+
+int procura (Graph g,int o,int d)
+{
+    int vis[V],i;
+    for (i=0;i<V;i++) vis[i]=0;
+    return (procuraRec(g,o,d,vis));
+}
+
+int travDFRec (Graph g,int o,int vis[])
+{
+    int count=1;
+    struct edge *aux;
+    vis[o]=1;
+    for (aux=g[o];aux!=NULL;aux=aux->next)
+    {
+        if (!vis[aux->dest])
+        count+=travDFRec(g,aux->dest,vis);
+    }
+    return count;
+    
+}
+
+int travDF (Graph g,int o)
+{
+    int vis[V],i;
+    for (i=0;i<V;i++) vis[i]=0;
+    return (travDFRec(g,o,vis));
+}
+
+int maiorCL (Graph g)
+{
+    int i,vis[V],max=0,tmp=0;
+    for (i=0;i<V;i++) vis[i]=0;
+    for (i=0;i<V;i++)
+    {
+        if (!vis[i])
+        {
+            tmp=travDFRec(g,i,vis);
+            if (tmp>max) max=tmp;
+        }
+    }
+    return max;
+}
+
+int bipartidoRec (Graph g,int o,int c,int vis[])
+{
+    int r=1;
+    struct edge *aux;
+    vis[o]=c;
+    for (aux=g[o];aux!=NULL;aux=aux->next)
+    {
+        if (vis[aux->dest]==vis[o]) 
+        {
+            r=0;
+            break;
+        }
+        if (vis[aux->dest]<0)
+        r=bipartidoRec(g,aux->dest,!c,vis);
+    }
+    return r;
+}
+
+int bipartido (Graph g)
+{
+    int vis[V],i;
+    for (i=0;i<V;i++) vis[i]=-1;
+    return (bipartidoRec(g,0,0,vis));
+}
+
+int travDFRec2 (Graph g,int o,int p[],int vis[])
+{
+    int count=1;
+    struct edge *aux;
+    vis[o]=1;
+    for (aux=g[o];aux!=NULL;aux=aux->next)
+    {
+        if (!vis[aux->dest])
+        {
+            p[aux->dest]=o;
+            count+=travDFRec2(g,aux->dest,p,vis);
+        }
+    }
+    return count;
+}
+
+int travDF2 (Graph g,int o,int p[])
+{
+    int vis[V],i;
+    for (i=0;i<V;i++) vis[i]=0;
+    p[o]=-1;
+    return (travDFRec2(g,o,p,vis));
+}
+
 int main () 
 {
+    int p[V],i;
+
     GraphMat testM = {
-        {0,0,3,5,0},
-        {0,2,0,0,0},
-        {0,0,0,0,1},
-        {7,0,9,0,0},
-        {0,0,0,4,0}
+        {0,2,6,4,0,0,0},
+        {0,0,0,0,7,0,0},
+        {0,0,0,0,3,9,0},
+        {0,0,0,0,0,4,0},
+        {3,0,0,0,0,0,0},
+        {0,0,0,0,0,0,3},
+        {0,0,0,2,0,0,0}
     };
 
     Graph testG;
     matToList (testM,testG);
 
-
-    printf("%d\n",maxCap(testG));
+    printf("R = %d\n",travDF2(testG,4,p));
+    for (i=0;i<V;i++) printf("%d\n",p[i]);
     //printMat(testM);
     //printG(testG);
     //printf("%d\n",nArestas(testG));
