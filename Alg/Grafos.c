@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define V 7
+#define V 8
+#define MAX 5
 
 typedef int GraphMat[V][V];
 
@@ -12,6 +13,56 @@ typedef struct edge {
 }*EList;
 
 typedef EList Graph[V];
+
+typedef struct queue {
+    int values [MAX];
+    int inicio,tamanho;
+}*Queue;
+
+void initQueue (Queue q)
+{
+    q->inicio=0;
+    q->tamanho=0;
+}
+
+int isEmpty (Queue q)
+{
+    return (q->tamanho==0);
+}
+
+int enqueue (Queue q,int a)
+{
+    int r=0;
+    if (q->tamanho==MAX) r=1;
+    else 
+    {
+        q->values[((q->inicio+q->tamanho)%MAX)]=a;
+        q->tamanho++;
+    }
+    return r;
+}
+
+int dequeue (Queue q,int *a)
+{
+    int r=0;
+    if (q->tamanho==0) r=1;
+    else
+    {
+        *a=q->values[q->inicio];
+        q->inicio=(q->inicio+1)%MAX;
+        q->tamanho--;
+    }
+    return r;
+}
+
+void printQueue (Queue q)
+{
+    int i;
+    for (i=0;i<q->tamanho;i++)
+    {
+        printf("%d ",q->values[(i+q->inicio)%MAX]);
+    }
+}
 
 void printMat (GraphMat m) 
 {
@@ -292,25 +343,200 @@ int travDF2 (Graph g,int o,int p[])
     return (travDFRec2(g,o,p,vis));
 }
 
+int travBF (Graph g ,int o)
+{
+    int count=0,vis[V],i;
+    struct edge *aux;
+    Queue q=malloc(sizeof(struct queue));
+    initQueue(q);
+
+    for (i=0;i<V;i++) vis[i]=0;
+
+    vis[o]=1;
+    enqueue(q,o);
+    while (!isEmpty(q))
+    {
+        dequeue(q,&o);
+        count++;
+        for (aux=g[o];aux!=NULL;aux=aux->next)
+        {
+            if(!vis[aux->dest])
+            {
+                enqueue(q,aux->dest);
+                vis[aux->dest]=1;
+            }
+        }
+    }
+}
+
+int travBFTree (Graph g,int o,int ant[])
+{
+    int count=0,vis[V],i;
+    struct edge *aux;
+    Queue q=malloc(sizeof(struct queue));
+    initQueue(q);
+
+    for (i=0;i<V;i++) vis[i]=0;
+
+    ant[o]=-1;
+    vis[o]=1;
+    enqueue(q,o);
+    while (!isEmpty(q))
+    {
+        dequeue(q,&o);
+        count++;
+        for (aux=g[o];aux!=NULL;aux=aux->next)
+        {
+            if(!vis[aux->dest])
+            {
+                ant[aux->dest]=o;
+                enqueue(q,aux->dest);
+                vis[aux->dest]=1;
+            }
+        }
+    }
+}
+
+int adist (Graph g,int o,int k)
+{
+    int vis[V],i,dis[V],n=0,r=0;
+    struct edge *aux;
+    Queue q=malloc(sizeof(struct queue));
+    initQueue(q);
+
+    for (i=0;i<V;i++) vis[i]=0;
+    dis[o]=n;
+    vis[o]=1;
+    enqueue(q,o);
+    while (!isEmpty(q))
+    {
+        dequeue(q,&o);
+        if(dis[o]==k) r++;
+        for (aux=g[o];aux!=NULL;aux=aux->next)
+        {
+            if(!vis[aux->dest])
+            {
+                enqueue(q,aux->dest);
+                vis[aux->dest]=1;
+                dis[aux->dest]=dis[o]+1;
+            }
+        }
+    }
+    return r;
+}
+
+int haLigacao (Graph g,int o,int d,int sec)
+{
+    int vis[V],i,r;
+    struct edge *aux;
+    Queue q=malloc(sizeof(struct queue));
+    initQueue(q);
+
+    for (i=0;i<V;i++) vis[i]=0;
+
+    vis[o]=1;
+    enqueue(q,o);
+    while (!isEmpty(q))
+    {
+        dequeue(q,&o);
+        if (o==d) r=1;
+        for (aux=g[o];aux!=NULL;aux=aux->next)
+        {
+            if((!vis[aux->dest])&&(aux->cost>sec))
+            {
+                enqueue(q,aux->dest);
+                vis[aux->dest]=1;
+            }
+        }
+    }
+    return r;
+}
+
+int caminhoValido (Graph g, int o, int p[],int N)
+{
+    int vis[V],i,dis[V];
+    struct edge *aux;
+    Queue q=malloc(sizeof(struct queue));
+    initQueue(q);
+
+    for (i=0;i<V;i++) vis[i]=0;
+
+    dis[o]=0;
+    vis[o]=1;
+    enqueue(q,o);
+    while (!isEmpty(q))
+    {
+        dequeue(q,&o);
+        if(dis[o]==N) return 1;
+        for (aux=g[o];aux!=NULL;aux=aux->next)
+        {
+            if(!vis[aux->dest]&&aux->cost==p[dis[o]])
+            {
+                dis[aux->dest]=dis[o]+1;
+                enqueue(q,aux->dest);
+                vis[aux->dest]=1;
+            }
+        }
+    }
+    return 0;
+}
+
+int tkhanTS (Graph g ,int seq[])
+{
+    int i,ini=0,fim=0,o;
+    int grau[V];
+    struct edge *aux;
+    for (i=0;i<V;i++) grau[i]=0;
+    for (i=0;i<V;i++)
+    {
+        for (aux=g[i];aux!=NULL;aux=aux->next)
+        {
+            grau[aux->dest]++;
+        }
+    }
+    for (i=0;i<V;i++)
+    {
+        if (grau[i]==0) seq[fim++]=i;
+    }
+    while(fim>ini)
+    {
+        o=seq[ini++];
+        for (aux=g[o];aux!=NULL;aux=aux->next)
+        {
+            grau[aux->dest]--;
+            if(grau[aux->dest]==0)
+            {
+                seq[fim++]=aux->dest;
+            }
+        }
+    }
+    for (i=0;i<ini;i++) printf("%d\n",seq[i]);
+}
+
 int main () 
 {
     int p[V],i;
+    int cam[3] = {6,9};
+    int x;
 
     GraphMat testM = {
-        {0,2,6,4,0,0,0},
-        {0,0,0,0,7,0,0},
-        {0,0,0,0,3,9,0},
-        {0,0,0,0,0,4,0},
-        {3,0,0,0,0,0,0},
-        {0,0,0,0,0,0,3},
-        {0,0,0,2,0,0,0}
+        {0,0,0,0,0,0,0,0},
+        {1,0,1,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0},
+        {1,0,0,0,1,0,1,0},
+        {1,1,0,0,0,0,0,0},
+        {0,1,1,0,0,0,0,1},
+        {0,0,0,0,0,0,0,0},
+        {0,0,0,1,0,0,1,0}
     };
 
     Graph testG;
     matToList (testM,testG);
+    tkhanTS(testG,p);
+    //printf("%d\n",tkhanTS(testG,p));
 
-    printf("R = %d\n",travDF2(testG,4,p));
-    for (i=0;i<V;i++) printf("%d\n",p[i]);
+    //printf("R = %d\n",travDF2(testG,4,p));
+    //for (i=0;i<V;i++) printf("%d\n",p[i]);
     //printMat(testM);
     //printG(testG);
     //printf("%d\n",nArestas(testG));
